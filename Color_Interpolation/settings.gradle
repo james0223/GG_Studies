@@ -1,0 +1,2 @@
+rootProject.name = "Color_Interpolation"
+include ':app'
