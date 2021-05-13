@@ -178,6 +178,13 @@ class Rectangle(context: Context){
 
 
 
+        // So what the OpenGL API does is to create the notion of an "active texture".
+        // Then when we call an OpenGL API function to copy an image into a texture, we must do it this way:
+        // 1:  generate a texture and assign its identifier to an unsigned integer variable.
+        // 2:  bind the texture to the GL_TEXTURE bind point (or some such bind point).
+        // 3:  specify the size and format of the texture bound to GL_TEXTURE target.
+        // 4:  copy some image we want on the texture to the GL_TEXTURE target.
+        // And if we want to draw an image on another texture, we must repeat that same process.
 
         mTextureCoordinateHandle = GLES20.glGetAttribLocation(mProgram, "a_TexCoordinate")
         GLES20.glEnableVertexAttribArray(mTextureCoordinateHandle)
@@ -185,7 +192,9 @@ class Rectangle(context: Context){
 
         mTextureUniformHandle = GLES20.glGetUniformLocation(mProgram, "u_Texture")
 
+        // 텍스쳐 불러오기
         mTextureDataHandle = loadTexture(myContext, R.drawable.ground1)
+
         // Set the active texture unit to texture unit 0.
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
 
@@ -196,16 +205,20 @@ class Rectangle(context: Context){
         GLES20.glUniform1i(mTextureUniformHandle, 0)
 
 
-
-
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, vertexCount)
         GLES20.glDisableVertexAttribArray(positionHandle)
     }
 
     fun loadTexture(context: Context, resourceId: Int): Int {
+        // GLuint myTexture;
+        // glGenTextures(1, &myTexture); // generate just one texture
+        // GLuint myTextures[32];
+        // glGenTextures(32, myTextures); // generate 32 textures
+        // textureHandle이 여기서의 myTexture이다
         val textureHandle = IntArray(1)
-        GLES20.glGenTextures(1, textureHandle, 0)
-        if (textureHandle[0] != 0) {
+        GLES20.glGenTextures(1, textureHandle, 0) // 1개의 텍스처 오브젝트를 textureHandle에 저장
+
+        if (textureHandle[0] != 0) { // 0이 아닌지의 의미??--------------------------------------------
             val options = BitmapFactory.Options()
             options.inScaled = false // No pre-scaling
 
@@ -213,16 +226,31 @@ class Rectangle(context: Context){
             val bitmap = BitmapFactory.decodeResource(context.resources, resourceId, options)
 
             // Bind to the texture in OpenGL
+            // GL_TEXTURE_2D에 textureHandle[0]의 요소를 bind함
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureHandle[0])
 
-            // Set filtering
+            // Texture Filtering과 Texture Wrapping(텍스쳐 포장)의 설정을 지정하는 것이 glTexParameteri의 역할
+            // GL_NEAREST는 근접점 샘플링을, GL_LINEAR은 겹선형보간을 의미
+            // GL_TEXTURE_MIN_FILTER는 텍스쳐 축소의 경우의 설정
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST)
+            // GL_TEXTURE_MAG_FILTER는 텍스쳐 확대의 경우의 설정
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST)
 
             // Load the bitmap into the bound texture.
-            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+            // 텍스처 오브젝트를 실제 텍스쳐로 채우기 위해 GLTexImage2D를 호출
+            // 이 때, GLTexImage2D는 텍스처 오브젝트 ID는 파라미터로 필요로 하지 않는다
+            // 이는 일단 텍스쳐 오브젝트가 바인딩되면, 그 이후에 호출되는 함수들은 기본적으로 바인딩된 텍스처 오브젝트를 사용하기 때문이다
+            GLUtils.texImage2D(
+                GLES20.GL_TEXTURE_2D, // target
+                0, // mipmap level
+                bitmap, // 
+                0
+            )
 
             // Recycle the bitmap, since its data has been loaded into OpenGL.
+            // Android에서 Java로 Bitmap을 다룰 경우 OOM(Out-Of-Memory)를 늘 신경쓰며 작업을 해야한다.
+            // 아무리 기기에 램이 많아도 Java로 프로그래밍을 할 경우, 한 앱이 사용할 수있는 메모리의 크기는 제한되어있기 때문에, 조금이라도 큰 Bitmap을 처리할 경우 OOM을 피할 수는 없다.
+            // 그래서 Bitmap을 처리할 때, 필요한 최소 사이즈로 불러와야 하며, 사용이 끝난 Bitmap은 즉시 즉시 Recycle을 해줘야 한다.
             bitmap.recycle()
         }
         if (textureHandle[0] == 0) {

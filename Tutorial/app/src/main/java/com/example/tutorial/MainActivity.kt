@@ -206,9 +206,15 @@ class TargetModel {
     // Apply projection and camera transformations
     // In order to use the combined projection and camera view transformation matrix shown in the previews sections, first add a matrix variable to the vertex shader previously defined in the MyModel class
 
+    // 모든 object는 각각의 model matrix(World matrix)를 보유하고 view matrix와 projection matrix는 모든 오브젝트가 공유한다
+
+
+    // Object의 vertex shader(정점 쉐이더) 코드 생성
+    // vertex shader는 두 가지 종류의 입력을 받아들이는데, 하나는 정점 배열에 저장된 vertex별 attribute들로, 이는 position(위치), normal(노멀), texCoord(테스처 좌표)로 구성된다
+    // 나머지 하나는 모든 정점에 공유되는 입력 데이터로, uniform이라고 칭한다
     private val vertexShaderCode = // 도형의 꼭짓점을 렌더링하는 OpenGL ES 그래픽 코드
-        "uniform mat4 uMVPMatrix;" + // This matrix member variable provides a hook to manipulate the coordinates of the objects that use this vertex shader
-                "attribute vec4 vPosition;" +
+        "uniform mat4 uMVPMatrix;" + // uniform데이터를 받기 위한 uMVPMatrix 생성
+                "attribute vec4 vPosition;" + // 정점별 attribute 중 position값을 받기 위한 vPosition 생성
                 "void main() {" +
                 // the matrix must be included as a modifier of gl_Position
                 // Note that the uMVPMatrix factor *must be first* in order for the matrix multiplication product to be correct.
@@ -260,6 +266,16 @@ class TargetModel {
     // By allocateDirect() method, the buffer is built in physical memory.
 
 
+    // 원래의 glsl 코드
+    // GLuint abo - C++에서의 포인터값을 생성한다고 보면 댈듯
+
+    // glGenBuffers(GLsizei n, &abo) - n개의 버퍼 오브젝트를 생성하여 abo 위치에 저장한다
+
+    // glBindBuffer(GL_ARRAY_BUFFER, abo) - 생성된 버퍼 오브젝트를 GL_ARRAY_BUFFER에 바인드한다 (b = 3처럼 GL_ARRAY_BUFFER = abo 라고 생각해도 좋다)
+
+    // glBufferData(GL_ARRAY_BUFFER, - 원래는 obj겠지만 여기서는 하드코딩으로 생성된 triangleCoords에 속한 삼각형의 vertex 데이터를 위에서 GL_ARRAY_BUFFER에 바인드한 버퍼에 담는다
+    //     (GLsizei) objData.vertices.size() * sizeof(Vertex), - 버퍼의 크기를 설정한다 - 각 vertex의 coordinates(좌표값 수)에 전체 vertex의 수를 곱한 것
+    //      objData.vertices.data(), GLSTATIC_DRAW) - 담을 데이터
     private var vertexBuffer: FloatBuffer =
         // For maximum efficiency, you write these coordinates into a ByteBuffer, that is passed into the OpenGL ES graphics pipeline for processing.
         ByteBuffer.allocateDirect(triangleCoords.size * 4).run {
@@ -294,15 +310,21 @@ class TargetModel {
         val fragmentShader: Int = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderCode)
 
         // create empty OpenGL ES Program
+        // 원래의 GLSL버전의 코드는 아래와 같다
+        // GLuint mProgram = glCreateProgram()
         mProgram = GLES20.glCreateProgram().also {
 
             // add the vertex shader to program
+            // glAttachShader(mProgram, shader)
             GLES20.glAttachShader(it, vertexShader)
 
             // add the fragment shader to program
+            // glAttachShader(mProgram, shader)
             GLES20.glAttachShader(it, fragmentShader)
 
             // creates OpenGL ES program executables
+            // glLinkProgram(mProgram) - 여기서의 파라미터값은 Specifies the handle of the program object to be linked. 이다
+            // If any shader objects of type GL_VERTEX_SHADER are attached to program, they will be used to create an executable that will run on the programmable vertex processor
             GLES20.glLinkProgram(it)
         }
     }
@@ -331,12 +353,12 @@ class TargetModel {
         // 운영체제 입장에서는 응용프로그램에게 여러가지 서비스나 정보를 전달해주는 역활도 해야하지만 반대로 응용프로그램으로부터 자신을 보호해야하는 기능도 있어야 합니다.
         // 운영체제는 자신이 관리하는 자원이나 정보를 보호하기 위해서 자신이 관리하는 자원이나 정보의 실질적인 주소를 응용프로그램에게 알려주지 않고 그것을 암시하는 값만 전달하는 방식을 사용하는데 이것이 바로 핸들(handle)입니다.
 
-        // glGetAttribLocation queries the previously linked program object specified by program for the attribute variable specified by name and returns the index of the generic vertex attribute that is bound to that attribute variable.
+        // glGetAttribLocation queries the previously linked program object specified by program for the attribute variable specified by name and returns the **index** of the generic vertex attribute that is bound to that attribute variable.
         // If name is a matrix attribute variable, the index of the first column of the matrix is returned.
         // If the named attribute variable is not an active attribute in the specified program object or if name starts with the reserved prefix "gl_", a value of -1 is returned.
         positionHandle = GLES20.glGetAttribLocation(mProgram, "vPosition").also {
 
-            // Enable a handle to the triangle(model) vertices
+            // Enable a handle to the object vertices
             // To enable and disable a generic vertex attribute array, call glEnableVertexAttribArray and glDisableVertexAttribArray with index.
             // If enabled, the generic vertex attribute array is used when glDrawArrays, glDrawArraysInstanced, glDrawElements, glDrawElementsIntanced, or glDrawRangeElements is called.
             GLES20.glEnableVertexAttribArray(it)
@@ -372,28 +394,56 @@ class TargetModel {
 
     // Overloaded draw function
     fun draw(mvpMatrix: FloatArray) { // pass in the calculated transformation matrix
+
+        // init부분에서 이미 link까지의 절차를 마쳐두었으므로 use만 하면 된다
+        // glUseProgram은 파라미터로 받는 프로그램 오브젝트를 렌더링에 사용하겠다는 의미이다
         GLES20.glUseProgram(mProgram)
 
+        // glGetAttribLocation(GLuint mProgram, const GLchar *varName);
+        // glGetAttribLocation queries the previously linked program object specified by mProgram for the attribute variable specified by varName and returns the **index** of the generic vertex attribute that is bound to that attribute variable.
+        // If name is a matrix attribute variable, the index of the **first column** of the matrix is returned
         positionHandle = GLES20.glGetAttribLocation(mProgram, "vPosition").also {
 
+            // GlEnableVertexAttribArray(position)는 position에 해당하는 값을 활성화시킨다
+            // 여기서는 glGetAttribLocation으로 불러와진 vPosition vector attribute의 첫 인자를 가리키게 된다
             GLES20.glEnableVertexAttribArray(it)
+
+            // 각 postion에 대한 자세한 정보를 제공한다, 즉 GL프로그램의 중요한 역할 중 하나인 vertex shader가 attribute와 uniform을 사용할 수 있도록 넘겨주고 그 구조를 설명해주는 것
             GLES20.glVertexAttribPointer(
-                it, // GLuint index
-                COORDS_PER_VERTEX, // GLint size
-                GLES20.GL_FLOAT, // GLenum type,
-                false, // GLboolean normalized,
-                vertexStride, // GLsizei stride,
-                vertexBuffer // const void * pointer);
+                it, // GLuint index - 원래는 position, normal, texture coordinates값을 받는데 여기선 position 뿐이므로 index값은 하나 뿐이다
+                COORDS_PER_VERTEX, // GLint size - 각 정점이 몇개의 좌표(coordinates)로 구성되어있는지 말해준다
+                GLES20.GL_FLOAT, // GLenum type, - 각 정점이 어떤 데이터타입으로 설정되어있는지 말해준다
+                false, // GLboolean normalized, - normalize되어있는지 말해준다
+                vertexStride, // GLsizei stride, - Buffer에는 position, normal, texture 구분 없이 데이터가 일렬로 정렬되어 있으므로, 가령 position을 읽고 다음 position을 읽으려면 몇 개의 인자를 건너뛰어야 하는지를 말해주는 것
+                vertexBuffer // const void * pointer); - offset(in bytes) to the first occurrence of the attribute
             )
 
             // get handle to shape's transformation matrix
+            // mvpMatrix를 매 프레임마다 정점 쉐이더 유니폼인 uMVPMatrix에 할당해야 하는데 이를 위해 uMVPMatrix의 위치를 알아낸다
             vPMatrixHandle = GLES20.glGetUniformLocation(mProgram, "uMVPMatrix")
 
             // Pass the projection and view transformation to the shader
-            GLES20.glUniformMatrix4fv(vPMatrixHandle, 1, false, mvpMatrix, 0)
+            // 4x4 매트릭스이므로 glUniformMatrix4fv를 사용하여 값을 할당한다
+            GLES20.glUniformMatrix4fv(
+                vPMatrixHandle, // 값을 할당할 uniform variable의 위치값
+                1, // the number of matrices to be modified
+                false, // GL_boolean transpose - Must be False!
+                mvpMatrix, // pointer to an array of 16 GL float values
+                0 // offset값
+            )
+
+            // 폴리곤 메시를 그리는 명령 - DrawCall
 
             // Draw the triangle
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, vertexCount)
+            // 메시가 인덱스 없이 표현되었다면, 즉 정점 배열로만 정의되었다면 glDrawArrays를 호출하고
+            GLES20.glDrawArrays(
+                GLES20.GL_TRIANGLES, // 삼각형 메시를 사용하여 그릴 것이므로 GL_TRIANGLES
+                0, // Start index in the vertex array
+                vertexCount // the number of vertices to draw
+            )
+
+            // 메시가 인덱스가 존재한다면 glDrawElements를 호출한다
+            // glDrawElements()
 
             // Disable vertex array
             GLES20.glDisableVertexAttribArray(positionHandle)
