@@ -1,4 +1,4 @@
-package com.example.color_interpolation
+package com.example.lighting
 
 import android.content.Context
 import android.opengl.GLES20
@@ -50,7 +50,7 @@ class MyGLRenderer(context: Context): GLSurfaceView.Renderer{
         //set viewMatrix
         Matrix.setLookAtM(viewMatrix, 0, 0f, 0f, -3f, 0f, 0f, 0f, 0f, 1f, 0f)
         //object triangle
-        triangle = Obj(mContext, triangleCoords)
+        triangle = Obj(mContext, triangleCoords, triangleNormals)
     }
 
     override fun onDrawFrame(p0: GL10?) {
@@ -67,23 +67,9 @@ class MyGLRenderer(context: Context): GLSurfaceView.Renderer{
     }
 }
 
-val triangleCoords = floatArrayOf(
-    0.0f, 0.5772f, 0.0f,
-    -0.5f, -0.2886f, 0.0f,
-    0.5f, -0.2886f, 0.0f
-)
-val colorR = floatArrayOf(
-    1.0f, 0f, 0f, 1f
-)
-val colorG = floatArrayOf(
-    0f, 1.0f, 0f, 1f
-)
-val colorB = floatArrayOf(
-    0f, 0f, 1.0f, 1f
-)
-
-class Obj(context: Context, coordinate: FloatArray){
+class Obj(context: Context, coordinate: FloatArray, normal: FloatArray){
     private var vertexBuffer: FloatBuffer
+    private var normalBuffer: FloatBuffer
     private var colorBuffer: FloatBuffer
 
     private val vertexShaderStream = context.resources.openRawResource(R.raw.vertex)
@@ -100,12 +86,17 @@ class Obj(context: Context, coordinate: FloatArray){
         vertexBuffer = vertexByteBuffer.asFloatBuffer()
         vertexBuffer.put(coordinate).position(0)
 
+        //vertex normal buffer
+        val normalByteBuffer = ByteBuffer.allocateDirect(normal.size * 4).order(ByteOrder.nativeOrder())
+        normalBuffer = normalByteBuffer.asFloatBuffer()
+        normalBuffer.put(normal).position(0)
+
         //color buffer
         val colorByteBuffer = ByteBuffer.allocateDirect(colorR.size * 3 * 4).order(ByteOrder.nativeOrder())
         colorBuffer = colorByteBuffer.asFloatBuffer()
         colorBuffer.put(colorR)
-        colorBuffer.put(colorG)
-        colorBuffer.put(colorB)
+        colorBuffer.put(colorR)
+        colorBuffer.put(colorR)
         colorBuffer.position(0)
 
         //shader
@@ -123,6 +114,10 @@ class Obj(context: Context, coordinate: FloatArray){
     private var colorHandle: Int = 0
     private var vMatrixHandle: Int = 0
     private var pMatrixHandle: Int = 0
+
+    private var lightHandle: Int = 0
+    private var lPosition = floatArrayOf(0f, 0.6f, 0f, 1f)
+    private var normalHandle: Int = 0
 
     private val COORDS_PER_VERTEX = 3
     private val vertexStride = COORDS_PER_VERTEX * 4
@@ -147,6 +142,16 @@ class Obj(context: Context, coordinate: FloatArray){
         pMatrixHandle = GLES20.glGetUniformLocation(mProgram, "pMatrix")
         GLES20.glUniformMatrix4fv(pMatrixHandle, 1, false, pMatrix, 0)
 
+        //light handle
+        lightHandle = GLES20.glGetUniformLocation(mProgram, "lightPosition")
+        // glUniform4fv - Specify the value of a uniform variable for the current program object
+        GLES20.glUniform4fv(lightHandle, 1, lPosition, 0)
+
+        //normal handle
+        normalHandle = GLES20.glGetAttribLocation(mProgram, "aNormal")
+        GLES20.glEnableVertexAttribArray(normalHandle)
+        GLES20.glVertexAttribPointer(normalHandle, COORDS_PER_VERTEX, GLES20.GL_FLOAT, false, vertexStride, normalBuffer)
+
         //color handle
         colorHandle = GLES20.glGetAttribLocation(mProgram, "aColor")
         GLES20.glEnableVertexAttribArray(colorHandle)
@@ -158,6 +163,21 @@ class Obj(context: Context, coordinate: FloatArray){
         GLES20.glDisableVertexAttribArray(positionHandle)
     }
 }
+
+val triangleCoords = floatArrayOf(
+    0.0f, 0.5772f, 0.0f,
+    -0.5f, -0.2886f, 0.0f,
+    0.5f, -0.2886f, 0.0f
+)
+val triangleNormals = floatArrayOf(
+    0f, 1f, 0f,
+    -0.86625f, -0.5f, 0f,
+    0.86625f, -0.5f, 0f
+)
+
+val colorR = floatArrayOf(1.0f, 0f, 0f, 1f)
+val colorG = floatArrayOf(0f, 1.0f, 0f, 1f)
+val colorB = floatArrayOf(0f, 0f, 1.0f, 1f)
 
 
 fun loadShader(type: Int, shaderCode: String): Int{
