@@ -1,0 +1,2 @@
+rootProject.name = "color_change_triangle"
+include ':app'
