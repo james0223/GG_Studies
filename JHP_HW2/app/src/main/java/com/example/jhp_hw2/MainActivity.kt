@@ -195,8 +195,15 @@ fun myFrustumM(aspect:Float, fov:Float, near:Float, far:Float):FloatArray{
 class Obj(context: Context, filename: String, program: Int, private var material: Material? = null){
 
     private var vertices = mutableListOf<Float>()
+    private var vertexNormals = mutableListOf<Float>()
+    private var textureVertices = mutableListOf<Float>()
+    private var faceVertices = mutableListOf<Int>()
+
     private var triangleVertices = mutableListOf<Float>()
     private lateinit var verticesBuffer: FloatBuffer
+    private lateinit var verticesNormalBuffer: FloatBuffer
+    private lateinit var textureVerticesBuffer: FloatBuffer
+    private lateinit var facesBuffer: FloatBuffer
 
     private var vbo: IntArray = IntArray(1)
 
@@ -223,7 +230,13 @@ class Obj(context: Context, filename: String, program: Int, private var material
                         // vn parsing
 
                         // Code
-
+                        val vertexNormal = line.split(" ")
+                        val x = vertexNormal[2].toFloat()
+                        val y = vertexNormal[3].toFloat()
+                        val z = vertexNormal[4].toFloat()
+                        vertexNormals.add(x)
+                        vertexNormals.add(y)
+                        vertexNormals.add(z)
                         //-------------------------------------------------------
                     }
                     line.startsWith("vt ") -> {
@@ -233,7 +246,13 @@ class Obj(context: Context, filename: String, program: Int, private var material
                         // vt parsing
 
                         // Code
-
+                        val vertexTexture = line.split(" ")
+                        val x = vertexTexture[2].toFloat()
+                        val y = vertexTexture[3].toFloat()
+                        val z = vertexTexture[4].toFloat()
+                        textureVertices.add(x)
+                        textureVertices.add(y)
+                        textureVertices.add(z)
                         //-------------------------------------------------------
                     }
                     line.startsWith("f ") -> {
@@ -243,7 +262,13 @@ class Obj(context: Context, filename: String, program: Int, private var material
                         // v parsing
 
                         // Code
-
+                        val faceData = line.split(" ")
+                        val x = faceData[2].split("/")
+                        val y = faceData[3].split("/")
+                        val z = faceData[4].split("/")
+                        faceVertices.add(x[0].toInt())
+                        faceVertices.add(y[0].toInt())
+                        faceVertices.add(z[0].toInt())
                         //-------------------------------------------------------
                     }
                 }

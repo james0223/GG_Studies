@@ -23,7 +23,7 @@ void main() {
     // Implement the phong shader using 2 color point lights.
 
     // world-space vertex normal
-    // v_normal = ;
+    // v_normal = transpose(inverse(worldMat)) * normal;
 
     // view vector
     // v_view = ;
